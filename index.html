@@ -289,6 +289,7 @@ function clean(o){if(!o||typeof o.text!=="string"||!COLORS[o.color]||!FONTS.some
 const newId=()=>"m"+[...crypto.getRandomValues(new Uint8Array(8))].map(b=>b.toString(16).padStart(2,"0")).join("");
 /* Share messages without a database: paste your Google Apps Script web app URL here (see docs/SHARED-STORAGE.md). Leave empty to save in each visitor's own browser. */
 const SHARED_URL=(window.WOE_CONFIG&&window.WOE_CONFIG.SHARED_URL)||"";
+const STARTERS=!(window.WOE_CONFIG&&window.WOE_CONFIG.STARTER_MESSAGES===false);
 let local=[],real=[],db=null,col=null;
 try{local=JSON.parse(localStorage.getItem("woe3d")||"[]").map(clean).filter(Boolean)}catch(e){}
 const saveLocal=()=>{try{localStorage.setItem("woe3d",JSON.stringify(local.slice(-40)))}catch(e){}};
@@ -297,7 +298,7 @@ try{const old=JSON.parse(localStorage.getItem("woe1")||"[]"),mc={Black:"White",B
 real=local.filter(live);
 const SMP=[["I wish I had told you how I really felt.","","Someone",0,"Blue","natural","marker","medium"],["I still keep your last message. I read it when it rains.","","",1,"Pink","romantic","pen","small"],["I’m sorry for what I said at the station. I meant none of it.","","Marco",0,"White","bold","chalk","small"],["The way she laughs at your jokes? I hope it’s louder than mine was.","To my almost","",1,"Yellow","thin","chalk","small"],["I got the job. I called your number anyway.","Dad","Lia",0,"Green","thin","pen","small"],["I forgive you. It took nine years, but I do.","","",1,"Orange","messy","spray","small"],["I’m not okay but I keep saying I am.","","",1,"Purple","playful","marker","small"],["I kept the recipe. Yours still tastes better.","Mom","Joy",0,"Orange","natural","chalk","small"],["You were my best friend and I let you go quietly.","","N.",0,"Pink","romantic","graffiti","small"],["I wanted to be a painter. I became an accountant. I still paint at night.","","Ren",0,"White","playful","chalk","small"],["It gets lighter. I promise.","To myself","",1,"Blue","natural","spray","medium"],["I loved you in every room you walked through.","","Ellis",0,"Red","messy","marker","small"],["Nobody knows I cry in the car before work.","","",1,"Green","thin","pen","small"],["Thank you for staying until I fell asleep. You never knew how much it mattered.","","Kai",0,"Yellow","bold","graffiti","small"]];
 const samples=SMP.map((s,i)=>{const r=rngOf(i+40);return{id:"s"+i,t:Date.now(),name:s[2],anon:!!s[3],to:s[1],text:s[0],color:s[4],font:s[5],style:s[6],size:s[7],u:.1+(i%5)*.2+(r()-.5)*.03,v:.8-Math.floor(i/5)*.28+(r()-.5)*.04}});
-const shown=()=>samples.slice(0,Math.max(0,14-real.length)).concat(real);
+const shown=()=>(STARTERS?samples:[]).concat(real);
 function repaint(){wx.drawImage(bgc,0,0);const n=Date.now();shown().forEach(m=>drawMsg(wx,m,m.t&&real.includes(m)?1-.45*(n-m.t)/EXP:1));wt.needsUpdate=true}
 async function persist(o){const{_l,S,...p}=o;if(db){try{await col.doc(o.id).set(p);return}catch(e){}}
  if(SHARED_URL){try{await fetch(SHARED_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(p)})}catch(e){}setTimeout(loadShared,1500)}
@@ -364,12 +365,21 @@ $("#capBtn").onclick=()=>{if(human)return;$("#capBox").hidden=false;newCap();$("
 $("#capR").onclick=()=>{newCap();$("#capIn").value="";$("#capIn").focus()};
 $("#capOk").onclick=()=>{if(tries>=5){$("#capS").textContent="Too many tries. Reload to try again.";return}
  if($("#capIn").value.trim().toUpperCase()===capCode){human=true;tries=0;$("#capBox").hidden=true;$("#capBtn").setAttribute("aria-pressed","true");$("#capBtn").textContent="✓ Verified";$("#capS").textContent=""}else{tries++;$("#capS").textContent="Wrong code. Try the new one.";newCap();$("#capIn").value=""}};
+function freeSpot(d){const L=layout(d),mg=60,list=shown().map(rectOf);
+ const ok=(u,v)=>{const cx=clamp(u*CW,L.w/2+mg,CW-L.w/2-mg),cy=clamp((1-v)*CH,L.h/2+mg,CH-L.h/2-mg),r={x:cx-L.w/2,y:cy-L.h/2,w:L.w,h:L.h};return list.every(q=>!hit(r,q))?{u:cx/CW,v:1-cy/CH}:null};
+ const a=ok(d.u,d.v);if(a)return a;
+ for(let ring=1;ring<=40;ring++){const step=ring*40;for(let k=0;k<ring*8;k++){const ang=k/(ring*8)*6.283,u=d.u+Math.cos(ang)*step/CW,v=d.v-Math.sin(ang)*step/CH;if(u<0||u>1||v<0||v>1)continue;const b=ok(u,v);if(b)return b}}
+ return null}
 $("#cancel").onclick=closeWriter;
 $("#pub").onclick=async()=>{if(busy||!pend)return;const m=$("#msg"),bad=t=>{m.textContent=t;m.style.color="#b3410b"},text=$("#text").value.trim();
  if($("#hp").value)return;const ink=mode==="hand"?inkFromPad():null;if(mode==="hand"?!ink:text.length<3)return bad(mode==="hand"?"Write something on the pad first.":"Write at least 3 characters.");if(!human)return bad("Verify that you are human first.");if(Date.now()-lastPost<10000)return bad("Please wait a few seconds before leaving another one.");if(!pend.ok)return bad("That spot is taken. Click a clearer place on the wall.");
- busy=true;$("#pub").disabled=true;
+ busy=true;$("#pub").disabled=true;m.style.color="#555";m.textContent="Checking for a free spot…";
+ if(SHARED_URL)await loadShared();
+ if(!pend){busy=false;$("#pub").disabled=false;m.textContent="";return}
  const o=clean({id:newId(),t:Date.now(),name:$("#name").value.trim(),anon:$("#anon").checked,to:$("#to").value.trim(),text,color:st.color,font:st.font,style:st.style,size:st.size,u:pend.u,v:pend.v,...(ink?{k:"ink",s:ink.s,ar:ink.ar,font:"natural",text:""}:{})});
- real.push(o);repaint();selectMsg(o);closeWriter();["#text","#to","#name"].forEach(s=>$(s).value="");$("#anon").checked=false;resetCap();PS=[];padDraw();
+ const sp=o&&freeSpot(o);if(!sp){busy=false;$("#pub").disabled=false;return bad("The wall is too crowded around here. Click a clearer spot.")}
+ const moved=Math.abs(sp.u-o.u)>.0005||Math.abs(sp.v-o.v)>.0005;o.u=sp.u;o.v=sp.v;
+ real.push(o);repaint();selectMsg(o);closeWriter();if(moved)hint("Your message was moved a little, to the nearest free spot.",6000);["#text","#to","#name"].forEach(s=>$(s).value="");$("#anon").checked=false;resetCap();PS=[];padDraw();
  await persist(o);lastPost=Date.now();busy=false;$("#pub").disabled=false};
 
 /* ---------- first-person controls ---------- */

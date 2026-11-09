@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Wall admin</title>
+<style>
+body{font:16px/1.45 system-ui,Segoe UI,Arial,sans-serif;margin:0;padding:20px;background:#1c0e08;color:#f3e6d3}
+h1{margin:0 0 6px}input,button{font:inherit;padding:8px 12px;border-radius:4px;border:1px solid #8a6a4a;background:#2a1710;color:#f3e6d3}
+button{cursor:pointer}button.del{background:#8a1f1f;border-color:#c24;color:#fff}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.card{border:1px solid #5a3a28;padding:10px 12px;margin:8px 0;border-radius:6px;background:#26140c}
+.meta{font-size:13px;color:#c9a98a}.txt{font-size:18px;margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+</style></head><body>
+<h1>Wall admin</h1>
+<p>Only you should use this page. Type the <b>ADMIN_KEY</b> you set inside your Google script. It is never saved.</p>
+<div class="row"><input type="password" id="key" placeholder="Admin key" autocomplete="off"><button id="go">Load messages</button><input id="q" placeholder="Search words or names"></div>
+<p id="st"></p><div id="list"></div>
+<script src="config.js"></script>
+<script>
+const U=(window.WOE_CONFIG||{}).SHARED_URL,$=s=>document.querySelector(s);let items=[];
+const api=async q=>(await fetch(U+"?"+new URLSearchParams(q))).json();
+async function load(){
+  if(!U){$("#st").textContent="SHARED_URL is empty in config.js.";return}
+  $("#st").textContent="Loading…";
+  try{const r=await api({action:"list",key:$("#key").value});
+    if(!Array.isArray(r)){$("#st").textContent="Wrong key (or the script was not redeployed as a New version).";items=[];draw();return}
+    items=r;$("#st").textContent=items.length+" message(s).";draw()}
+  catch(e){$("#st").textContent="Could not reach the script. Check the link in config.js."}
+}
+function draw(){
+  const q=$("#q").value.trim().toLowerCase(),box=$("#list");box.textContent="";
+  items.filter(m=>!q||((m.text||"")+" "+(m.name||"")+" "+(m.to||"")).toLowerCase().includes(q)).forEach(m=>{
+    const c=document.createElement("div");c.className="card";
+    const meta=document.createElement("div");meta.className="meta";
+    meta.textContent=new Date(m.t).toLocaleString()+"  |  name: "+(m.name||"(none)")+(m.anon?" (shown as Anonymous)":"")+"  |  "+m.style+"  |  id "+m.id;
+    const t=document.createElement("div");t.className="txt";t.textContent=m.k==="ink"?"[hand-drawn message]":((m.to?m.to+": ":"")+m.text);
+    const b=document.createElement("button");b.className="del";b.textContent="Delete";
+    b.onclick=async()=>{if(!confirm("Delete this message for everyone?"))return;b.disabled=true;
+      try{const r=await api({action:"delete",id:m.id,key:$("#key").value});$("#st").textContent=r.deleted?"Deleted.":"Nothing deleted ("+(r.error||"not found")+").";await load()}catch(e){$("#st").textContent="Delete failed."}};
+    c.append(meta,t,b);box.appendChild(c)});
+}
+$("#go").onclick=load;$("#q").oninput=draw;
+</script></body></html>
