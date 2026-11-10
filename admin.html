@@ -33,7 +33,7 @@ function draw(){
     const t=document.createElement("div");t.className="txt";t.textContent=m.k==="ink"?"[hand-drawn message]":((m.to?m.to+": ":"")+m.text);
     const b=document.createElement("button");b.className="del";b.textContent="Delete";
     b.onclick=async()=>{if(!confirm("Delete this message for everyone?"))return;b.disabled=true;
-      try{const r=await api({action:"delete",id:m.id,key:$("#key").value});$("#st").textContent=r.deleted?"Deleted.":"Nothing deleted ("+(r.error||"not found")+").";await load()}catch(e){$("#st").textContent="Delete failed."}};
+      try{const r=await api({action:"delete",id:m.id,key:$("#key").value});await load();$("#st").textContent+=r.deleted?" Deleted.":" Nothing deleted ("+(r.error||"not found")+")."}catch(e){$("#st").textContent="Delete failed."}};
     c.append(meta,t,b);box.appendChild(c)});
 }
 $("#go").onclick=load;$("#q").oninput=draw;

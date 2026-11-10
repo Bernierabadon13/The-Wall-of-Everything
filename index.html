@@ -39,9 +39,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#3a2418;font:16px/1.4 
 #joy{position:fixed;width:110px;height:110px;border-radius:50%;border:2px solid #fff9;background:#ffffff26;pointer-events:none;z-index:6}
 #joy b{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:#fffc}
 .wr[hidden],#joy[hidden],.cap .box[hidden]{display:none}
-.wr{position:fixed;z-index:15;right:16px;top:16px;bottom:16px;width:min(370px,calc(100vw - 32px));overflow:auto;padding:22px 20px;background-color:#fcfbf7;color:#111;user-select:text;-webkit-user-select:text;box-shadow:0 14px 34px -8px #000c;
-background-image:linear-gradient(180deg,#0000 calc(33.3% - 6px),#0000002a 33.3%,#ffffffd9 calc(33.3% + 1.5px),#0000 calc(33.3% + 8px)),linear-gradient(180deg,#0000 calc(66.6% - 6px),#0000002a 66.6%,#ffffffd9 calc(66.6% + 1.5px),#0000 calc(66.6% + 8px)),radial-gradient(ellipse at 10% 4%,#fff,#0000 55%);transform-origin:50% 0;animation:wind 8s ease-in-out infinite}
-@keyframes wind{0%,100%{transform:perspective(1200px) rotateY(-.5deg) rotateX(.3deg)}50%{transform:perspective(1200px) rotateY(.6deg) rotateX(-.4deg)}}
+.wr{position:fixed;z-index:15;right:16px;top:16px;bottom:16px;width:min(370px,calc(100vw - 32px));overflow:auto;padding:30px 20px 22px;background-color:#fcfbf7;color:#111;user-select:text;-webkit-user-select:text;box-shadow:0 2px 3px #0006,0 16px 30px -8px #000b,0 40px 70px -24px #0009;background-image:linear-gradient(#efe0b4d9,#d8c78ed9),linear-gradient(#efe0b4d9,#d8c78ed9),radial-gradient(ellipse at 10% 4%,#fff,#0000 55%);background-repeat:no-repeat;background-position:18% 0,82% 0,0 0;background-size:74px 24px,74px 24px,100% 100%;transform-origin:50% 0;animation:hang 6.5s ease-in-out infinite;will-change:transform}
+@keyframes hang{0%,100%{transform:perspective(1100px) rotateZ(-1.1deg) rotateY(-1.4deg) rotateX(.5deg)}25%{transform:perspective(1100px) rotateZ(0deg) rotateY(0deg) rotateX(-.2deg)}50%{transform:perspective(1100px) rotateZ(1.1deg) rotateY(1.4deg) rotateX(.5deg)}75%{transform:perspective(1100px) rotateZ(0deg) rotateY(0deg) rotateX(-.2deg)}}
+.wr:has(#pad:active){animation-play-state:paused}
 @media (pointer:coarse),(max-width:640px){.wr{top:auto;left:0;right:0;bottom:0;width:auto;max-height:66vh;animation:none}}
 @media (prefers-reduced-motion:reduce){.wr{animation:none}}
 .wr h2{font:700 36px/1.05 "Caveat",cursive;margin:0 0 4px}
@@ -305,8 +305,13 @@ async function persist(o){const{_l,S,...p}=o;if(db){try{await col.doc(o.id).set(
  local.push(p);saveLocal()}
 /* shared wall from plain files: messages.json in this repo, and/or a Google Sheet through SHARED_URL */
 function mergeRemote(a){(Array.isArray(a)?a:[]).forEach(o=>{const m=clean(o);if(!m||!live(m))return;const i=real.findIndex(x=>x.id===m.id);i<0?real.push(m):real[i]=m});repaint()}
-async function loadShared(){try{const r=await fetch("messages.json",{cache:"no-store"});if(r.ok)mergeRemote(await r.json())}catch(e){}
- if(SHARED_URL){try{const r=await fetch(SHARED_URL);mergeRemote(await r.json())}catch(e){}}}
+async function loadShared(){
+  const ids=new Set();let ok=false;
+  try{const r=await fetch("messages.json",{cache:"no-store"});if(r.ok){const a=await r.json();(Array.isArray(a)?a:[]).forEach(o=>o&&ids.add(String(o.id||"").slice(0,40)));mergeRemote(a)}}catch(e){}
+  if(SHARED_URL){try{const r=await fetch(SHARED_URL);const a=await r.json();if(Array.isArray(a)){ok=true;a.forEach(o=>o&&ids.add(String(o.id||"").slice(0,40)));mergeRemote(a)}}catch(e){}}
+  /* drop anything the server no longer has (deleted in admin), including copies saved in this browser; 2-minute grace for just-posted messages */
+  if(ok&&!db){const cut=Date.now()-12e4,gone=m=>m.t<cut&&!ids.has(m.id),n=real.length+local.length;real=real.filter(m=>!gone(m));local=local.filter(m=>!gone(m));if(real.length+local.length!==n){saveLocal();repaint()}}
+}
 loadShared();if(SHARED_URL)setInterval(()=>{if(!document.hidden)loadShared()},15000);
 $("#dl").onclick=e=>{e.stopPropagation();const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(real.map(m=>{const{_l,S,...p}=m;return p}),null,1)],{type:"application/json"}));a.download="messages.json";a.click()};
 if(window.claude)claude.use("db").then(d=>{if(!d)return;db=d;col=d.collection("confessions");
