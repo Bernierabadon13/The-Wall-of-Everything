@@ -308,7 +308,7 @@ function mergeRemote(a){(Array.isArray(a)?a:[]).forEach(o=>{const m=clean(o);if(
 async function loadShared(){
   const ids=new Set();let ok=false;
   try{const r=await fetch("messages.json",{cache:"no-store"});if(r.ok){const a=await r.json();(Array.isArray(a)?a:[]).forEach(o=>o&&ids.add(String(o.id||"").slice(0,40)));mergeRemote(a)}}catch(e){}
-  if(SHARED_URL){try{const r=await fetch(SHARED_URL);const a=await r.json();if(Array.isArray(a)){ok=true;a.forEach(o=>o&&ids.add(String(o.id||"").slice(0,40)));mergeRemote(a)}}catch(e){}}
+  if(SHARED_URL){try{const r=await fetch(SHARED_URL+"?_="+Date.now(),{cache:"no-store"});const a=await r.json();if(Array.isArray(a)){ok=true;a.forEach(o=>o&&ids.add(String(o.id||"").slice(0,40)));mergeRemote(a)}}catch(e){}}
   /* drop anything the server no longer has (deleted in admin), including copies saved in this browser; 2-minute grace for just-posted messages */
   if(ok&&!db){const cut=Date.now()-12e4,gone=m=>m.t<cut&&!ids.has(m.id),n=real.length+local.length;real=real.filter(m=>!gone(m));local=local.filter(m=>!gone(m));if(real.length+local.length!==n){saveLocal();repaint()}}
 }

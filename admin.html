@@ -15,7 +15,7 @@ button{cursor:pointer}button.del{background:#8a1f1f;border-color:#c24;color:#fff
 <script src="config.js"></script>
 <script>
 const U=(window.WOE_CONFIG||{}).SHARED_URL,$=s=>document.querySelector(s);let items=[];
-const api=async q=>(await fetch(U+"?"+new URLSearchParams(q))).json();
+const api=async q=>(await fetch(U+"?"+new URLSearchParams({...q,_:Date.now()}),{cache:"no-store"})).json();
 async function load(){
   if(!U){$("#st").textContent="SHARED_URL is empty in config.js.";return}
   $("#st").textContent="Loading…";
@@ -33,7 +33,7 @@ function draw(){
     const t=document.createElement("div");t.className="txt";t.textContent=m.k==="ink"?"[hand-drawn message]":((m.to?m.to+": ":"")+m.text);
     const b=document.createElement("button");b.className="del";b.textContent="Delete";
     b.onclick=async()=>{if(!confirm("Delete this message for everyone?"))return;b.disabled=true;
-      try{const r=await api({action:"delete",id:m.id,key:$("#key").value});await load();$("#st").textContent+=r.deleted?" Deleted.":" Nothing deleted ("+(r.error||"not found")+")."}catch(e){$("#st").textContent="Delete failed."}};
+      try{const r=await api({action:"delete",id:m.id,k:m._k||"",key:$("#key").value});await load();$("#st").textContent+=" Server said: "+JSON.stringify(r)}catch(e){$("#st").textContent="Delete failed."}};
     c.append(meta,t,b);box.appendChild(c)});
 }
 $("#go").onclick=load;$("#q").oninput=draw;

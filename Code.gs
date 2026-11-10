@@ -22,17 +22,23 @@ function isAdmin_(e) {
   return ok;
 }
 
+const VERSION = 3;                           // open YOUR_LINK?action=ping : it must show {"v":3} when this version is live
+
 function doGet(e) {
   const a = e && e.parameter && e.parameter.action;
+  if (a === "ping") return json_({ v: VERSION });
   if (a === "list") {                         // admin: every message, newest first
     if (!isAdmin_(e)) return json_({ error: "denied" });
-    return json_(all_().sort((x, y) => y.o.t - x.o.t).map(x => x.o));
+    return json_(all_().sort((x, y) => y.o.t - x.o.t).map(x => Object.assign({ _k: x.k }, x.o)));
   }
-  if (a === "delete") {                       // admin: remove one message by id
+  if (a === "delete") {                       // admin: remove one message
     if (!isAdmin_(e)) return json_({ error: "denied" });
-    const id = String(e.parameter.id || ""); let n = 0;
-    all_().forEach(x => { if (x.o.id === id) { props_().deleteProperty(x.k); n++; } });
-    return json_({ deleted: n });
+    const id = String(e.parameter.id || ""), k = String(e.parameter.k || ""); let n = 0;
+    const lock = LockService.getScriptLock(); lock.waitLock(10000);
+    try {
+      all_().forEach(x => { if ((k && x.k === k) || (id && String(x.o.id) === id)) { props_().deleteProperty(x.k); n++; } });
+    } finally { lock.releaseLock(); }
+    return json_({ deleted: n, left: all_().length });
   }
   const since = Date.now() - WEEK;            // everyone: the last 7 days
   return json_(all_().filter(x => x.o.t > since).map(x => x.o));
@@ -47,11 +53,14 @@ function doPost(e) {
     if (Math.abs(Date.now() - o.t) > 864e5) throw new Error("bad time");     // stops fake timestamps that would never expire
     const low = (o.text + " " + (o.name || "") + " " + (o.to || "")).toLowerCase();
     if (BLOCKED.some(w => w && low.indexOf(w) >= 0)) throw new Error("blocked");
-    const list = all_(), since = Date.now() - WEEK;
-    list.filter(x => x.o.t < since).forEach(x => props_().deleteProperty(x.k));      // drop expired
-    const keep = list.filter(x => x.o.t >= since).sort((a, b) => a.o.t - b.o.t);
-    while (keep.length >= MAX_MSGS) props_().deleteProperty(keep.shift().k);          // drop oldest if full
-    props_().setProperty("m:" + o.t + ":" + String(o.id || "").slice(0, 20), JSON.stringify(o));
+    const lock = LockService.getScriptLock(); lock.waitLock(10000);
+    try {
+      const list = all_(), since = Date.now() - WEEK;
+      list.filter(x => x.o.t < since).forEach(x => props_().deleteProperty(x.k));      // drop expired
+      const keep = list.filter(x => x.o.t >= since).sort((a, b) => a.o.t - b.o.t);
+      while (keep.length >= MAX_MSGS) props_().deleteProperty(keep.shift().k);          // drop oldest if full
+      props_().setProperty("m:" + o.t + ":" + String(o.id || "").slice(0, 20), JSON.stringify(o));
+    } finally { lock.releaseLock(); }
   } catch (err) {}
   return ContentService.createTextOutput("ok");
 }
